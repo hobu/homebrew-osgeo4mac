@@ -1,82 +1,93 @@
-require 'formula'
+require "formula"
 require File.expand_path("../../Requirements/qgis_requirements",
                          Pathname.new(__FILE__).realpath)
 
-class UnlinkedQGIS22 < UnlinkedQGIS
+class UnlinkedQGIS24 < UnlinkedQGIS
   fatal true
   def qgis_formula_name
-    "qgis-22"
+    "qgis-24"
   end
   satisfy(:build_env => false) { no_linked_qgis[0] }
 end
 
-class Qgis22 < Formula
-  homepage 'http://www.qgis.org'
-  url 'https://github.com/qgis/QGIS/archive/final-2_2_0.tar.gz'
-  sha1 '5d043ef6b31a043aa2608a3eebdc3d7d997f2189'
-  revision 4
+class Qgis24 < Formula
+  homepage "http://www.qgis.org"
+  url "https://github.com/qgis/QGIS/archive/final-2_4_0.tar.gz"
+  sha1 "df479a4c3ffe2c0f9f4777f320aab92ae2dd08b0"
 
-  option 'enable-isolation', "Isolate .app's environment to HOMEBREW_PREFIX, to coexist with other QGIS installs"
-  option 'with-debug', 'Enable debug build, which outputs info to system.log or console'
-  option 'skip-stdlib-check', 'Build skips checking if dependencies are built against conflicting stdlib.'
-  option 'without-server', 'Build without QGIS Server (qgis_mapserv.fcgi)'
-  option 'without-postgresql', 'Build without current PostgreSQL client'
-  option 'with-globe', 'Build with Globe plugin, based upon osgEarth'
-  option 'with-grass', 'Build with GRASS integration plugin support'
-  option 'with-postgis', 'Build extra PostGIS geospatial database extender'
-  option 'with-oracle', 'Build extra Oracle geospatial database and raster support'
-  option 'with-orfeo', 'Build extra Orfeo Toolbox for Processing plugin'
-  option 'with-r', 'Build extra R for Processing plugin'
-  option 'with-saga-gis', 'Build extra Saga GIS for Processing plugin'
-  option 'with-qt-mysql', 'Build extra Qt MySQL plugin for eVis plugin'
-  option 'with-api-docs', 'Build the API documentation with Doxygen and Graphviz'
+  head "https://github.com/qgis/QGIS.git", :branch => "master"
 
-  depends_on UnlinkedQGIS22
+  option "enable-isolation", "Isolate .app's environment to HOMEBREW_PREFIX, to coexist with other QGIS installs"
+  option "with-debug", "Enable debug build, which outputs info to system.log or console"
+  option "skip-stdlib-check", "Build skips checking if dependencies are built against conflicting stdlib."
+  option "without-server", "Build without QGIS Server (qgis_mapserv.fcgi)"
+  option "without-postgresql", "Build without current PostgreSQL client"
+  option "without-globe", "Build without Globe plugin, based upon osgEarth"
+  option "without-grass", "Build without GRASS integration plugin support"
+  option "without-postgis", "Build without extra PostGIS geospatial database extender"
+  option "with-oracle", "Build extra Oracle geospatial database and raster support"
+  option "with-orfeo", "Build extra Orfeo Toolbox for Processing plugin"
+  option "with-r", "Build extra R for Processing plugin"
+  option "with-saga-gis", "Build extra Saga GIS for Processing plugin"
+  option "with-qt-mysql", "Build extra Qt MySQL plugin for eVis plugin"
+  option "with-api-docs", "Build the API documentation with Doxygen and Graphviz"
+  #option "persistent-build", "Maintain the build directory in HOMEBREW_TEMP (--HEAD only)"
+
+  depends_on UnlinkedQGIS24
 
   # core qgis
-  depends_on 'cmake' => :build
-  depends_on 'bison' => :build
-  if build.with? 'api-docs'
-    depends_on 'graphviz' => [:build, 'with-freetype']
-    depends_on 'doxygen' => [:build, 'with-dot'] # with graphviz support
+  depends_on "cmake" => :build
+  depends_on "bison" => :build
+  if build.with? "api-docs"
+    depends_on "graphviz" => [:build, "with-freetype"]
+    depends_on "doxygen" => [:build, "with-dot"] # with graphviz support
   end
-  depends_on (build.include? 'enable-isolation' || MacOS.version < :lion ) ? 'python' : :python
-  depends_on 'qt'
-  depends_on 'pyqt'
+  depends_on (build.include? "enable-isolation" || MacOS.version < :lion ) ? "python" : :python
+  depends_on "qt"
+  depends_on "pyqt"
   depends_on SipBinary
   depends_on PyQtConfig
-  depends_on 'qscintilla2' # will probably be a C++ lib deps in near future
-  depends_on 'qwt'
-  depends_on 'qwtpolar'
-  depends_on 'gsl'
-  depends_on 'sqlite' # keg_only
-  depends_on 'expat' # keg_only
-  depends_on 'proj'
-  depends_on 'spatialindex'
-  depends_on 'fcgi' if build.with? 'server'
+  depends_on "qscintilla2" # will probably be a C++ lib deps in near future
+  depends_on "qwt"
+  depends_on "qwtpolar"
+  depends_on "gsl"
+  depends_on "sqlite" # keg_only
+  depends_on "expat" # keg_only
+  depends_on "proj"
+  depends_on "spatialindex"
+  depends_on "fcgi" if build.with? "server"
   # use newer postgresql client than Apple's, also needed by `psycopg2`
-  depends_on 'postgresql' => :recommended
+  depends_on "postgresql" => :recommended
 
   # core providers
-  depends_on 'gdal'
-  depends_on 'postgis' => :optional
+  depends_on "gdal"
+  depends_on "postgis" => :recommended
   depends_on "oracle-client-sdk" if build.with? "oracle"
+  # TODO: add MSSQL third-party support formula?, :optional
 
   # core plugins (c++ and python)
-  depends_on 'grass-64' => :optional
-  depends_on 'gdal-grass64' if build.with? 'grass'
-  depends_on 'gettext' if build.with? 'grass'
-  depends_on 'gpsbabel' => [:recommended, 'with-libusb']
-  depends_on 'open-scene-graph' if build.with? 'globe'
-  depends_on 'homebrew/science/osgearth' if build.with? 'globe'
-  depends_on 'pyspatialite' # for DB Manager
-  depends_on 'qt-mysql' => :optional # for eVis plugin (non-functional in 2.0.1?)
+  if build.with? "grass"
+    depends_on "grass-64"
+    depends_on "gdal-grass64"
+    depends_on "gettext"
+  end
+  if build.with? "globe"
+    depends_on "open-scene-graph"
+    depends_on "homebrew/science/osgearth"
+  end
+  depends_on "gpsbabel" => [:recommended, "with-libusb"]
+  # TODO: remove "pyspatialite" when PyPi package supports spatialite 4.x
+  #       or DB Manager supports libspatialite > 4.1.1 (with mod_spatialite)
+  depends_on "pyspatialite" # for DB Manager
+  depends_on "qt-mysql" => :optional # for eVis plugin (non-functional in 2.0.1?)
 
   # core processing plugin extras
   # see `postgis` and `grass` above
-  depends_on 'orfeo' => :optional
-  depends_on 'homebrew/science/r' => :optional
-  depends_on 'saga-gis' => :optional
+  depends_on "orfeo-40" if build.with? "orfeo"
+  depends_on "homebrew/science/r" => :optional
+  depends_on "saga-gis" => :optional
+  # TODO: LASTools straight build (2 reporting tools), or via `wine` (10 tools)
+  # TODO: Fusion from USFS (via `wine`?)
 
   resource "pyqgis-startup" do
     url "https://gist.githubusercontent.com/dakcarto/11385561/raw/7af66d0c8885a888831da6f12298a906484a1471/pyqgis_startup.py"
@@ -84,30 +95,29 @@ class Qgis22 < Formula
     version "2.0.0"
   end
 
-  # patch that represents all backports to release-2_2 branch,
-  # through 03e15e05b28fbab68541ba37be17e3ea6b1dfec2
-  stable do
-    patch do
-      url "https://gist.githubusercontent.com/dakcarto/9781934/raw/19d25932c8f0e1e89849cc8d2fc50a43dacfae42/qgis-22-backports.diff"
-      sha1 "5cf37ba41686c78bc71430ed4405c6b5998b09cf"
-    end
-  end
+  # Patch that represents all backports to release-2_4 branch,
+  # stable do
+  #   patch do
+  #     url ""
+  #     sha1 ""
+  #   end
+  # end
 
   def install
     # Set bundling level back to 0 (the default in all versions prior to 1.8.0)
     # so that no time and energy is wasted copying the Qt frameworks into QGIS.
-    qwt_fw = Formula['qwt'].opt_prefix/"lib/qwt.framework"
-    qwtpolar_fw = Formula['qwtpolar'].opt_prefix/"lib/qwtpolar.framework"
-    dev_fw = lib/'qgis-dev'
+    qwt_fw = Formula["qwt"].opt_prefix/"lib/qwt.framework"
+    qwtpolar_fw = Formula["qwtpolar"].opt_prefix/"lib/qwtpolar.framework"
+    dev_fw = lib/"qgis-dev"
     dev_fw.mkpath
-    qsci_opt = Formula['qscintilla2'].opt_prefix
+    qsci_opt = Formula["qscintilla2"].opt_prefix
     args = %W[
       -DCMAKE_INSTALL_PREFIX=#{prefix}
-      -DCMAKE_BUILD_TYPE=#{(build.with?('debug')) ? 'RelWithDebInfo' : 'None' }
+      -DCMAKE_BUILD_TYPE=#{(build.with?("debug")) ? "RelWithDebInfo" : "None" }
       -DCMAKE_FIND_FRAMEWORK=LAST
       -DCMAKE_VERBOSE_MAKEFILE=TRUE
       -Wno-dev
-      -DBISON_EXECUTABLE=#{Formula['bison'].opt_prefix}/bin/bison
+      -DBISON_EXECUTABLE=#{Formula["bison"].opt_prefix}/bin/bison
       -DENABLE_TESTS=FALSE
       -DQWT_INCLUDE_DIR=#{qwt_fw}/Headers
       -DQWT_LIBRARY=#{qwt_fw}/qwt
@@ -129,63 +139,74 @@ class Qgis22 < Formula
       args << "-DPYTHON_CUSTOM_FRAMEWORK='#{brewed_python_framework}'"
     end
 
-    args << "-DGIT_MARKER=''" # if git clone borked, or release tarball, ends up defined as 'exported'
-
-    args << '-DWITH_MAPSERVER=TRUE' if build.with? 'server'
-
-    pgsql = Formula['postgresql']
-    args << "-DPOSTGRES_CONFIG=#{pgsql.opt_prefix}/bin/pg_config" if build.with? 'postgresql'
-
-    if build.with? 'oracle'
-      args << '-DWITH_ORACLE=TRUE'
-      oracle_opt = Formula['oracle-client-sdk'].opt_prefix
-      args << "-DOCI_INCLUDE_DIR=#{oracle_opt}/sdk/include"
-      args << "-DOCI_LIBRARY=#{oracle_opt}/lib/libclntsh.dylib"
+    # find git revision for HEAD build
+    if build.head? && File.exists?("#{cached_download}/.git/index")
+      args << "-DGITCOMMAND=#{Formula["git"].bin}/git"
+      args << "-DGIT_MARKER=#{cached_download}/.git/index"
+    else
+      args << "-DGIT_MARKER=''" # if git clone borked, or release tarball, ends up defined as 'exported'
     end
 
-    if build.with? 'grass'
+    args << "-DWITH_MAPSERVER=TRUE" if build.with? "server"
+
+    pgsql = Formula["postgresql"]
+    args << "-DPOSTGRES_CONFIG=#{pgsql.opt_prefix}/bin/pg_config" if build.with? "postgresql"
+
+    if build.with? "grass"
       grass = Formula["grass-64"]
       args << "-DGRASS_PREFIX='#{grass.opt_prefix}/grass-#{grass.version.to_s}'"
       # So that `libintl.h` can be found
-      ENV.append 'CXXFLAGS', "-I'#{Formula['gettext'].opt_prefix}/include'"
+      ENV.append "CXXFLAGS", "-I'#{Formula["gettext"].opt_prefix}/include'"
     end
 
-    if build.with? 'globe'
-      osg = Formula['open-scene-graph']
+    if build.with? "globe"
+      osg = Formula["open-scene-graph"]
       opoo "`open-scene-graph` formula's keg not linked." unless osg.linked_keg.exist?
-      args << '-DWITH_GLOBE=TRUE'
+      args << "-DWITH_GLOBE=TRUE"
       # must be HOMEBREW_PREFIX/lib/osgPlugins-#.#.#, since all osg plugins are symlinked there
       args << "-DOSG_PLUGINS_PATH=#{HOMEBREW_PREFIX}/lib/osgPlugins-#{osg.linked_keg.realpath.basename.to_s}"
     end
 
-    args << '-DWITH_APIDOC=TRUE' if build.with? 'api-docs'
+    if build.with? "oracle"
+      args << "-DWITH_ORACLE=TRUE"
+      oracle_opt = Formula["oracle-client-sdk"].opt_prefix
+      args << "-DOCI_INCLUDE_DIR=#{oracle_opt}/sdk/include"
+      args << "-DOCI_LIBRARY=#{oracle_opt}/lib/libclntsh.dylib"
+    end
+
+    args << "-DWITH_APIDOC=TRUE" if build.with? "api-docs"
 
     # Avoid ld: framework not found QtSql
     # (https://github.com/Homebrew/homebrew-science/issues/23)
-    ENV.append 'CXXFLAGS', "-F#{Formula['qt'].opt_prefix}/lib"
+    ENV.append "CXXFLAGS", "-F#{Formula["qt"].opt_prefix}/lib"
 
-    mkdir 'build'
+    # TODO: update .app's bundle identifier for HEAD builds
+    # (convert to using `defaults`)
+    #/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier org.qgis.qgis-dev" "$APPTARGET/Contents/Info.plist"
 
-    cd 'build' do
+    # TODO: keep persistent build directory for HEAD builds
+    mkdir "build"
+
+    cd "build" do
       # fix install fail on stdlib check for Mavericks+, if mixing supporting libs with different stdlibs
-      cxxstdlib_check :skip if MacOS.version >= :mavericks and build.include? 'skip-stdlib-check'
+      cxxstdlib_check :skip if MacOS.version >= :mavericks and build.include? "skip-stdlib-check"
 
-      system 'cmake', '..', *args
-      #system 'bbedit', 'CMakeCache.txt'
+      system "cmake", "..", *args
+      #system "bbedit", "CMakeCache.txt"
       #raise
-      system 'make', 'install'
+      system "make", "install"
     end
 
     py_lib = lib/"python2.7/site-packages"
-    qgis_modules = prefix/'QGIS.app/Contents/Resources/python/qgis'
+    qgis_modules = prefix/"QGIS.app/Contents/Resources/python/qgis"
     py_lib.mkpath
-    ln_s qgis_modules, py_lib/'qgis'
+    ln_s qgis_modules, py_lib/"qgis"
 
-    ln_s 'QGIS.app/Contents/MacOS/fcgi-bin', prefix/'fcgi-bin' if build.with? 'server'
+    ln_s "QGIS.app/Contents/MacOS/fcgi-bin", prefix/"fcgi-bin" if build.with? "server"
 
     doc.mkpath
-    mv prefix/'QGIS.app/Contents/Resources/doc/api', doc/'api' if build.with? 'api-docs'
-    ln_s prefix/'QGIS.app/Contents/Resources/doc', doc/'doc'
+    mv prefix/"QGIS.app/Contents/Resources/doc/api", doc/"api" if build.with? "api-docs"
+    ln_s prefix/"QGIS.app/Contents/Resources/doc", doc/"doc"
 
     # copy PYQGIS_STARTUP file pyqgis_startup.py, even if not isolating (so tap can be untapped)
     # only works with QGIS > 2.0.1
@@ -206,14 +227,14 @@ class Qgis22 < Formula
     # define default isolation env vars
     pthsep = File::PATH_SEPARATOR
     pypth = "#{python_site_packages}"
-    pths = %W[#{HOMEBREW_PREFIX/'bin'} /usr/bin /bin /usr/sbin /sbin /usr/X11/bin].join(pthsep)
+    pths = %W[#{HOMEBREW_PREFIX/"bin"} /usr/bin /bin /usr/sbin /sbin /usr/X11/bin].join(pthsep)
 
-    unless opts.include? 'enable-isolation'
+    unless opts.include? "enable-isolation"
       pths = ORIGINAL_PATHS.join(pthsep)
-      unless pths.include? HOMEBREW_PREFIX/'bin'
-        pths = HOMEBREW_PREFIX/'bin' + pthsep + pths
+      unless pths.include? HOMEBREW_PREFIX/"bin"
+        pths = HOMEBREW_PREFIX/"bin" + pthsep + pths
       end
-      pyenv = ENV['PYTHONPATH']
+      pyenv = ENV["PYTHONPATH"]
       if pyenv
         pypth = (pyenv.include?(pypth)) ? pyenv : pypth + pthsep + pyenv
       end
@@ -225,43 +246,45 @@ class Qgis22 < Formula
       :GDAL_DRIVER_PATH => "#{HOMEBREW_PREFIX}/lib/gdalplugins"
     }
 
-    if opts.include? 'with-grass'
+    if opts.include? "with-grass"
       grass = Formula["grass-64"]
       envars[:GRASS_PREFIX] = "#{grass.opt_prefix}/grass-#{grass.version.to_s}"
     end
 
-    if opts.include? 'with-globe'
-      osg = Formula['open-scene-graph']
+    if opts.include? "with-globe"
+      osg = Formula["open-scene-graph"]
       envars[:OSG_LIBRARY_PATH] = "#{HOMEBREW_PREFIX}/lib/osgPlugins-#{osg.linked_keg.realpath.basename}"
     end
 
-    if opts.include? 'enable-isolation'
+    if opts.include? "enable-isolation"
       envars[:DYLD_FRAMEWORK_PATH] = "#{HOMEBREW_PREFIX}/Frameworks:/System/Library/Frameworks"
       versioned = %W[
-        #{Formula['sqlite'].opt_prefix}/lib
-        #{Formula['expat'].opt_prefix}/lib
-        #{Formula['libxml2'].opt_prefix}/lib
+        #{Formula["sqlite"].opt_prefix}/lib
+        #{Formula["expat"].opt_prefix}/lib
+        #{Formula["libxml2"].opt_prefix}/lib
         #{HOMEBREW_PREFIX}/lib
       ]
       envars[:DYLD_VERSIONED_LIBRARY_PATH] = versioned.join(pthsep)
     end
-    if opts.include? 'enable-isolation' or File.exist?("/Library/Frameworks/GDAL.framework")
-      envars[:PYQGIS_STARTUP] = opt_libexec/'pyqgis_startup.py'
+    if opts.include? "enable-isolation" or File.exist?("/Library/Frameworks/GDAL.framework")
+      # TODO: is PYTHONHOME necessary for isolation, or is it set by embedded interpreter?
+      #envars[:PYTHONHOME] = "#{python.framework}/Python.framework/Versions/Current"
+      envars[:PYQGIS_STARTUP] = opt_libexec/"pyqgis_startup.py"
     end
 
     #envars.each { |key, value| puts "#{key.to_s}=#{value}" }
     #exit
 
     # add env vars to QGIS.app's Info.plist, in LSEnvironment section
-    app = prefix/'QGIS.app'
-    plst = app/'Contents/Info.plist'
+    app = prefix/"QGIS.app"
+    plst = app/"Contents/Info.plist"
     # first delete any LSEnvironment setting, ignoring errors
     # CAUTION!: may not be what you want, if .app already has LSEnvironment settings
     dflt = quiet_system "defaults read-type \"#{plst}\" LSEnvironment"
     system "defaults delete \"#{plst}\" LSEnvironment" if dflt
-    kv = '{ '
+    kv = "{ "
     envars.each { |key, value| kv += "'#{key.to_s}' = '#{value}'; " }
-    kv += '}'
+    kv += "}"
     system "defaults write \"#{plst}\" LSEnvironment \"#{kv}\""
     # leave the plist readable; convert from binary to XML format
     system "plutil -convert xml1 -- \"#{plst}\""
@@ -269,14 +292,14 @@ class Qgis22 < Formula
     system "touch \"#{app}\""
 
     # add env vars to launch script for QGIS app's binary
-    qgis_bin = bin/'qgis'
+    qgis_bin = bin/"qgis"
     rm_f qgis_bin if File.exists?(qgis_bin) # install generates empty file
     bin_cmds = %W[#!/bin/sh\n]
     # setup shell-prepended env vars (may result in duplication of paths)
-    envars[:PATH] = "#{HOMEBREW_PREFIX}/bin" + pthsep + '$PATH'
-    envars[:PYTHONPATH] = "#{python_site_packages}" + pthsep + '$PYTHONPATH'
+    envars[:PATH] = "#{HOMEBREW_PREFIX}/bin" + pthsep + "$PATH"
+    envars[:PYTHONPATH] = "#{python_site_packages}" + pthsep + "$PYTHONPATH"
     envars.each { |key, value| bin_cmds << "export #{key.to_s}=#{value}" }
-    bin_cmds << opt_prefix/'QGIS.app/Contents/MacOS/QGIS'
+    bin_cmds << opt_prefix/"QGIS.app/Contents/MacOS/QGIS"
     qgis_bin.write(bin_cmds.join("\n"))
     qgis_bin.chmod 0755
   end
@@ -308,7 +331,7 @@ class Qgis22 < Formula
 
     EOS
 
-    if build.include? 'enable-isolation'
+    if build.include? "enable-isolation"
       s += <<-EOS.undent
         QGIS built with isolation enabled. This allows it to coexist with other
         types of installations of QGIS on your Mac. However, on versions >= 2.0.1,
@@ -319,7 +342,7 @@ class Qgis22 < Formula
     end
 
     # check for required run-time Python module dependencies
-    # TODO: add 'pyspatialite' when PyPi package supports spatialite 4.x
+    # TODO: add "pyspatialite" when PyPi package supports spatialite 4.x
     xm = []
     %w[psycopg2 matplotlib pyparsing].each {
         |m| xm << m unless module_importable? m
@@ -328,7 +351,7 @@ class Qgis22 < Formula
       s += <<-EOS.undent
         The following Python modules are needed by QGIS during run-time:
 
-            #{xm.join(', ')}
+            #{xm.join(", ")}
 
         You can install manually, via installer package or with `pip` (if availble):
 
@@ -337,7 +360,7 @@ class Qgis22 < Formula
       EOS
     end
     # TODO: remove this when libqscintilla.dylib becomes core build dependency?
-    unless module_importable? 'PyQt4.Qsci'
+    unless module_importable? "PyQt4.Qsci"
       s += <<-EOS.undent
         QScintilla Python module is needed by QGIS during run-time.
         Ensure `qscintilla2` formula is linked.
@@ -349,6 +372,12 @@ class Qgis22 < Formula
 
   private
   # python utils (deprecated in latest Homebrew)
+  # see: https://github.com/Homebrew/homebrew/pull/24842
+
+  #def osx_python?
+  #  p = `python -c "import sys; print(sys.prefix)"`.strip
+  #  p.start_with?("/System/Library/Frameworks/Python.framework")
+  #end
 
   def brewed_python_framework
     HOMEBREW_PREFIX/"Frameworks/Python.framework/Versions/2.7"
@@ -371,7 +400,7 @@ class Qgis22 < Formula
   end
 
   def python_incdir
-    Pathname.new(`#{python_exec} -c 'from distutils import sysconfig; print(sysconfig.get_python_inc())'`.strip)
+    Pathname.new(`#{python_exec} -c "from distutils import sysconfig; print(sysconfig.get_python_inc())"`.strip)
   end
 
   def python_libdir

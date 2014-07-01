@@ -1,13 +1,19 @@
 class UnlinkedQGIS < Requirement
   fatal true
 
+  def qgis_formula_name
+    # meant to be overridden by each formula using requirement
+    ""
+  end
+
   def qgis_list
     # default: homebrew/science's
-    %W[homebrew/science/qgis]
+    %W[homebrew/science/qgis qgis-18 qgis-20 qgis-22 qgis-24]
   end
 
   def no_linked_qgis
     qgis_list.each do |f|
+      next if f == qgis_formula_name
       begin
         return false, f if Formula[f].linked_keg.exist?
       rescue TapFormulaUnavailableError
