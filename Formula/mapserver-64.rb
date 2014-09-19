@@ -32,6 +32,11 @@ class Mapserver64 < Formula
   url 'http://download.osgeo.org/mapserver/mapserver-6.4.1.tar.gz'
   sha1 'f7d2e7f44cd9a4ff5d9483d21bb71c1cc28e09ab'
 
+  bottle do
+    root_url "http://qgis.dakotacarto.com/osgeo4mac/bottles"
+    sha1 "aeba2a7532b88599892bff09b9aa02bcd28f801b" => :mavericks
+  end
+
   head do
     url 'https://github.com/mapserver/mapserver.git', :branch => 'master'
     depends_on 'harfbuzz'
@@ -40,25 +45,25 @@ class Mapserver64 < Formula
 
   conflicts_with 'mapserver', :because => 'mapserver is in main tap'
 
-  option 'with-php', 'Build PHP MapScript module'
-  option 'with-java', 'Build Java MapScript module'
+  option 'without-php', 'Build PHP MapScript module'
   option 'without-rpath', "Don't embed rpath to installed libmapserver in modules"
-  option 'with-gd', 'Build with GD support (deprecated)' unless build.head?
-  option 'with-librsvg', 'Build with SVG symbology support'
   option 'without-geos', 'Build without GEOS spatial operations support'
   option 'without-postgresql', 'Build without PostgreSQL data source support'
-  option 'with-xml-mapfile', 'Build with native XML mapfile support'
+  option 'without-xml-mapfile', 'Build with native XML mapfile support'
+  option 'with-java', 'Build Java MapScript module'
+  option 'with-gd', 'Build with GD support (deprecated)' unless build.head?
+  option 'with-librsvg', 'Build with SVG symbology support'
   option 'with-docs', 'Download and generate HTML documentation'
+  option "with-unit-tests", "Download and install full unit test suite"
 
   depends_on 'cmake' => :build
   depends_on :freetype
-  depends_on :fontconfig
   depends_on :libpng
   depends_on :python
   depends_on 'swig' => :build
   depends_on JavaJDK if build.with? 'java'
   depends_on 'giflib'
-  depends_on 'gd' => [:optional, 'with-freetype'] unless build.head?
+  depends_on 'gd' => :optional unless build.head?
   depends_on 'proj'
   depends_on 'geos' => :recommended
   depends_on 'gdal'
@@ -72,18 +77,21 @@ class Mapserver64 < Formula
   depends_on 'fribidi'
   depends_on :python => %w[sphinx] if build.with? 'docs'
 
+  resource "sphinx" do
+    url "https://pypi.python.org/packages/source/S/Sphinx/Sphinx-1.2.2.tar.gz"
+    sha1 "9e424b03fe1f68e0326f3905738adcf27782f677"
+  end
+
   resource 'docs' do
     # NOTE: seems to be no tagged releases for `docs`, just active branches
     url 'https://github.com/mapserver/docs.git', :branch => 'branch-6-4'
     version '6.4'
   end
 
-  resource 'findjni' do
-    # replacement FindJNI.cmake module to optionally work with non-Apple Java installs
-    # see also: http://public.kitware.com/Bug/view.php?id=14508
-    url 'https://gist.github.com/dakcarto/8201389/raw/05ddab644981ab2e86580ff1be377ef8456ab426/FindJNI.cmake'
-    sha1 '14b1681d01cb08e11faa8deadf827b2ddbaabab1'
-    version '2.8.12.1'
+  resource "unittests" do
+    url "https://github.com/mapserver/msautotest.git",
+        :revision => "b0ba5ccbfb6b0395820f492eb5a190cf643b5ed8"
+    version "6.4"
   end
 
   def png_prefix
@@ -96,14 +104,11 @@ class Mapserver64 < Formula
     (ft.installed? or MacOS.version >= :mountain_lion) ? ft.opt_prefix : MacOS::X11.prefix
   end
 
-  def fontconfig_prefix
-    fc = Formula['fontconfig']
-    (fc.installed? or MacOS.version >= :mountain_lion) ? fc.opt_prefix : MacOS::X11.prefix
-  end
-
   def install
+    # install unit tests
+    (prefix/"msautotest").install resource("unittests") if build.with? "unit-tests"
+
     ENV.prepend_path 'CMAKE_PREFIX_PATH', freetype_prefix
-    ENV.prepend_path 'CMAKE_PREFIX_PATH', fontconfig_prefix
     ENV.prepend_path 'CMAKE_PREFIX_PATH', png_prefix
 
     args = std_cmake_args
@@ -130,7 +135,7 @@ class Mapserver64 < Formula
     mapscr_dir = prefix/'mapscript'
     mapscr_dir.mkpath
     rpath = %Q{-Wl,-rpath,"#{opt_prefix/'lib'}"}
-    use_rpath = build.with? 'rpath' && HOMEBREW_PREFIX != '/usr/local'
+    use_rpath = build.with? 'rpath'
     cd 'mapscript' do
       args << '-DWITH_PYTHON=ON'
       inreplace 'python/CMakeLists.txt' do |s|
@@ -166,7 +171,6 @@ class Mapserver64 < Formula
 
       if build.with? 'java'
         args << '-DWITH_JAVA=ON'
-        (buildpath/'cmake').install resource('findjni') # override cmake's
         ENV['JAVA_HOME'] = JavaJDK.home
         (mapscr_dir/'java').mkpath
         inreplace 'java/CMakeLists.txt' do |s|
@@ -184,10 +188,10 @@ class Mapserver64 < Formula
     end
 
     # install devel headers
-    # TODO: not quite sure which of these headers are unnecessary to copy
     (include/'mapserver').install Dir['*.h']
 
     prefix.install 'tests'
+    (mapscr_dir/"python").install "mapscript/python/tests"
     cd 'mapscript' do
       %w[python ruby perl].each {|x|(mapscr_dir/"#{x}").install "#{x}/examples"}
       (mapscr_dir/'php').install 'php/examples' if build.with? 'php'
@@ -233,24 +237,29 @@ class Mapserver64 < Formula
     (mapscr_dir/'Install_Modules.txt').write s
 
     if build.with? 'docs'
+      unless which("sphinx-build")
+        # vendor a local sphinx install
+        sphinx_site = libexec/"lib/python2.7/site-packages"
+        ENV.prepend_create_path "PYTHONPATH", sphinx_site
+        resource("sphinx").stage {quiet_system "python2.7", "setup.py", "install", "--prefix=#{libexec}"}
+        ENV.prepend_path "PATH", libexec/"bin"
+      end
       resource('docs').stage do
-        inreplace 'Makefile', 'sphinx-build', "#{HOMEBREW_PREFIX}/bin/sphinx-build"
+        # just build the en docs
+        inreplace "Makefile", "$(TRANSLATIONS_I18N) $(TRANSLATIONS_STATIC)", ""
         system 'make', 'html'
         doc.install 'build/html' => 'html'
       end
     end
   end
 
-  def caveats
-    s = <<-EOS.undent
-      The Mapserver CGI executable is #{opt_prefix}/bin/mapserv
+  def caveats; <<-EOS.undent
+    The Mapserver CGI executable is #{opt_prefix}/bin/mapserv
 
-      Instructions for installing any built, but uninstalled, mapscript modules:
-        #{opt_prefix}/mapscript/Install_Modules.txt
+    Instructions for installing any built, but uninstalled, mapscript modules:
+      #{opt_prefix}/mapscript/Install_Modules.txt
 
     EOS
-    #s += python.standard_caveats if python
-    s
   end
 
   test do
@@ -259,11 +268,12 @@ class Mapserver64 < Formula
     system 'python', '-c', '"import mapscript"'
     system 'ruby', '-e', "\"require '#{mapscr_opt_dir}/ruby/mapscript'\""
     system 'perl', "-I#{mapscr_opt_dir}/perl", '-e', '"use mapscript;"'
+
     cd "#{mapscr_opt_dir}/java/examples" do
       system "#{JavaJDK.home}/bin/javac",
              '-classpath', '../', '-Djava.ext.dirs=../', 'RFC24.java'
       system "#{JavaJDK.home}/bin/java",
-             '-classpath', '../', '-Djava.ext.dirs=../',
+             '-classpath', '../', '-Djava.library.path=../', '-Djava.ext.dirs=../',
              'RFC24', '../../../tests/test.map'
     end if build.with? 'java'
   end

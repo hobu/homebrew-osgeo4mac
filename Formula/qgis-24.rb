@@ -14,13 +14,25 @@ class Qgis24 < Formula
   homepage "http://www.qgis.org"
   url "https://github.com/qgis/QGIS/archive/final-2_4_0.tar.gz"
   sha1 "df479a4c3ffe2c0f9f4777f320aab92ae2dd08b0"
-  revision 1
+  revision 3
+
+  bottle do
+    root_url "http://qgis.dakotacarto.com/osgeo4mac/bottles"
+    sha1 "0343852aee57b869ba026a579502a1b144c21660" => :mavericks
+  end
+
+  def pour_bottle?
+    brewed_python?
+  end
+
+  def bottle_caveat
+    (MacOS.version == :mavericks) ? "Bottle supports only Homebrew Python\n\n" : ""
+  end
 
   head "https://github.com/qgis/QGIS.git", :branch => "master"
 
   option "enable-isolation", "Isolate .app's environment to HOMEBREW_PREFIX, to coexist with other QGIS installs"
   option "with-debug", "Enable debug build, which outputs info to system.log or console"
-  option "skip-stdlib-check", "Build skips checking if dependencies are built against conflicting stdlib."
   option "without-server", "Build without QGIS Server (qgis_mapserv.fcgi)"
   option "without-postgresql", "Build without current PostgreSQL client"
   option "without-globe", "Build without Globe plugin, based upon osgEarth"
@@ -33,7 +45,6 @@ class Qgis24 < Formula
   option "with-saga-gis", "Build extra Saga GIS for Processing plugin"
   option "with-qt-mysql", "Build extra Qt MySQL plugin for eVis plugin"
   option "with-api-docs", "Build the API documentation with Doxygen and Graphviz"
-  #option "persistent-build", "Maintain the build directory in HOMEBREW_TEMP (--HEAD only)"
 
   depends_on UnlinkedQGIS24
 
@@ -74,20 +85,19 @@ class Qgis24 < Formula
     depends_on "gettext"
   end
 
-  depends_on "grass-70" if build.with? "grass7"
-
   if build.with? "globe"
     depends_on "open-scene-graph"
     depends_on "homebrew/science/osgearth"
   end
   depends_on "gpsbabel" => [:recommended, "with-libusb"]
   # TODO: remove "pyspatialite" when PyPi package supports spatialite 4.x
-  #       or DB Manager supports libspatialite > 4.1.1 (with mod_spatialite)
+  #       or DB Manager supports libspatialite >= 4.2.0 (with mod_spatialite)
   depends_on "pyspatialite" # for DB Manager
-  depends_on "qt-mysql" => :optional # for eVis plugin (non-functional in 2.0.1?)
+  depends_on "qt-mysql" => :optional # for eVis plugin (non-functional in 2.x?)
 
   # core processing plugin extras
   # see `postgis` and `grass` above
+  depends_on "grass-70" if build.with? "grass7"
   depends_on "orfeo-40" if build.with? "orfeo"
   depends_on "homebrew/science/r" => :optional
   depends_on "saga-gis" => :optional
@@ -100,35 +110,38 @@ class Qgis24 < Formula
     version "2.0.0"
   end
 
-  # Patch that represents all backports to release-2_4 branch,
-  # stable do
-  #   patch do
-  #     url ""
-  #     sha1 ""
-  #   end
-  # end
+  # patch that represents all backports to release-2_4 branch,
+  stable do
+    patch do
+      # 8fdd08a through ed14cf3, with all ms-windows subdirectory changes stripped (line endings break patch apply)
+      url "https://gist.githubusercontent.com/dakcarto/ef82c5ade74120d92339/raw/1f7a5e39d87f07da79e8185e3f4aa6b00935456f/qgis-24-backports.diff"
+      sha1 "298f6f9a853d03ae33dfe09eb4608d1aeaf8d5b8"
+    end
+    patch do
+      # ed10647 through e973c66
+      url "https://gist.githubusercontent.com/dakcarto/a0465f760dd054d2ed02/raw/53c9ec6d6c042db4cbf807a7cd3d4e93a51e738d/qgis-24-backports-2.diff"
+      sha1 "4ec068f7f2b42f680e90bb8d837f963b39f479ff"
+    end
+  end
 
   def install
     # Set bundling level back to 0 (the default in all versions prior to 1.8.0)
     # so that no time and energy is wasted copying the Qt frameworks into QGIS.
-    qwt_fw = Formula["qwt"].opt_prefix/"lib/qwt.framework"
-    qwtpolar_fw = Formula["qwtpolar"].opt_prefix/"lib/qwtpolar.framework"
+    qwt_fw = Formula["qwt"].opt_lib/"qwt.framework"
+    qwtpolar_fw = Formula["qwtpolar"].opt_lib/"qwtpolar.framework"
     dev_fw = lib/"qgis-dev"
     dev_fw.mkpath
     qsci_opt = Formula["qscintilla2"].opt_prefix
-    args = %W[
-      -DCMAKE_INSTALL_PREFIX=#{prefix}
-      -DCMAKE_BUILD_TYPE=#{(build.with?("debug")) ? "RelWithDebInfo" : "None" }
-      -DCMAKE_FIND_FRAMEWORK=LAST
-      -DCMAKE_VERBOSE_MAKEFILE=TRUE
-      -Wno-dev
-      -DBISON_EXECUTABLE=#{Formula["bison"].opt_prefix}/bin/bison
+    args = std_cmake_args
+    args << "-DCMAKE_BUILD_TYPE=RelWithDebInfo" if build.with? "debug" # override
+    args += %W[
+      -DBISON_EXECUTABLE=#{Formula["bison"].opt_bin}/bison
       -DENABLE_TESTS=FALSE
       -DQWT_INCLUDE_DIR=#{qwt_fw}/Headers
       -DQWT_LIBRARY=#{qwt_fw}/qwt
       -DQWTPOLAR_INCLUDE_DIR=#{qwtpolar_fw}/Headers
       -DQWTPOLAR_LIBRARY=#{qwtpolar_fw}/qwtpolar
-      -DQSCINTILLA_INCLUDE_DIR=#{qsci_opt}/include/Qsci
+      -DQSCINTILLA_INCLUDE_DIR=#{qsci_opt}/include#{build.head? ? "" : "/Qsci"}
       -DQSCINTILLA_LIBRARY=#{qsci_opt}/lib/libqscintilla2.dylib
       -DWITH_INTERNAL_QWTPOLAR=FALSE
       -DQGIS_MACAPP_BUNDLE=0
@@ -146,62 +159,60 @@ class Qgis24 < Formula
 
     # find git revision for HEAD build
     if build.head? && File.exists?("#{cached_download}/.git/index")
-      args << "-DGITCOMMAND=#{Formula["git"].bin}/git"
+      args << "-DGITCOMMAND=#{Formula["git"].opt_bin}/git"
       args << "-DGIT_MARKER=#{cached_download}/.git/index"
     else
       args << "-DGIT_MARKER=''" # if git clone borked, or release tarball, ends up defined as 'exported'
     end
 
-    args << "-DWITH_MAPSERVER=TRUE" if build.with? "server"
+    args << "-DWITH_MAPSERVER=#{build.with?("server") ? "TRUE" : "FALSE"}"
 
-    pgsql = Formula["postgresql"]
-    args << "-DPOSTGRES_CONFIG=#{pgsql.opt_prefix}/bin/pg_config" if build.with? "postgresql"
+    args << "-DPOSTGRES_CONFIG=#{Formula["postgresql"].opt_bin}/pg_config" if build.with? "postgresql"
 
+    args << "-DWITH_GRASS=#{build.with?("grass") ? "TRUE" : "FALSE"}"
     if build.with? "grass"
       # this is to build the GRASS Plugin, not for Processing plugin support
       grass = Formula["grass-64"]
       args << "-DGRASS_PREFIX='#{grass.opt_prefix}/grass-#{grass.version.to_s}'"
       # So that `libintl.h` can be found
-      ENV.append "CXXFLAGS", "-I'#{Formula["gettext"].opt_prefix}/include'"
+      ENV.append "CXXFLAGS", "-I'#{Formula["gettext"].opt_include}'"
     end
 
+    args << "-DWITH_GLOBE=#{build.with?("globe") ? "TRUE" : "FALSE"}"
     if build.with? "globe"
       osg = Formula["open-scene-graph"]
       opoo "`open-scene-graph` formula's keg not linked." unless osg.linked_keg.exist?
-      args << "-DWITH_GLOBE=TRUE"
       # must be HOMEBREW_PREFIX/lib/osgPlugins-#.#.#, since all osg plugins are symlinked there
-      args << "-DOSG_PLUGINS_PATH=#{HOMEBREW_PREFIX}/lib/osgPlugins-#{osg.linked_keg.realpath.basename.to_s}"
+      args << "-DOSG_PLUGINS_PATH=#{HOMEBREW_PREFIX}/lib/osgPlugins-#{osg.version.to_s}"
     end
 
+    args << "-DWITH_ORACLE=#{build.with?("oracle") ? "TRUE" : "FALSE"}"
     if build.with? "oracle"
-      args << "-DWITH_ORACLE=TRUE"
       oracle_opt = Formula["oracle-client-sdk"].opt_prefix
       args << "-DOCI_INCLUDE_DIR=#{oracle_opt}/sdk/include"
       args << "-DOCI_LIBRARY=#{oracle_opt}/lib/libclntsh.dylib"
     end
 
-    args << "-DWITH_APIDOC=TRUE" if build.with? "api-docs"
+    args << "-DWITH_APIDOC=#{build.with?("api-docs") ? "TRUE" : "FALSE"}"
 
     # Avoid ld: framework not found QtSql
     # (https://github.com/Homebrew/homebrew-science/issues/23)
-    ENV.append "CXXFLAGS", "-F#{Formula["qt"].opt_prefix}/lib"
+    ENV.append "CXXFLAGS", "-F#{Formula["qt"].opt_lib}"
 
-    # TODO: update .app's bundle identifier for HEAD builds
-    # (convert to using `defaults`)
-    #/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier org.qgis.qgis-dev" "$APPTARGET/Contents/Info.plist"
+    # if using Homebrew's Python, make sure its components are always found first
+    # see: https://github.com/Homebrew/homebrew/pull/28597
+    ENV["PYTHONHOME"] = "#{brewed_python_framework}" if brewed_python?
 
-    # TODO: keep persistent build directory for HEAD builds
-    mkdir "build"
-
-    cd "build" do
-      # fix install fail on stdlib check for Mavericks+, if mixing supporting libs with different stdlibs
-      cxxstdlib_check :skip if MacOS.version >= :mavericks and build.include? "skip-stdlib-check"
-
+    mkdir "build" do
       system "cmake", "..", *args
       #system "bbedit", "CMakeCache.txt"
       #raise
       system "make", "install"
     end
+
+    # Update .app's bundle identifier, so Kyngchaos.com installer doesn't get confused
+    inreplace prefix/"QGIS.app/Contents/Info.plist",
+              "org.qgis.qgis2", "org.qgis.qgis2-hb#{build.head? ? "-dev" : ""}"
 
     py_lib = lib/"python2.7/site-packages"
     qgis_modules = prefix/"QGIS.app/Contents/Resources/python/qgis"
@@ -226,15 +237,17 @@ class Qgis24 < Formula
   def post_install
     # configure environment variables for .app and launching binary directly.
     # having this in `post_intsall` allows it to be individually run *after* installation with:
-    #    `brew postinstall -v qgis-22`
+    #    `brew postinstall -v qgis-XX` <-- where XX is formula version
 
     app = prefix/"QGIS.app"
-    opts = Tab.for_formula(self).used_options
+    tab = Tab.for_formula(self)
+    opts = tab.used_options
+    bottle_poured = tab.poured_from_bottle
 
     # define default isolation env vars
     pthsep = File::PATH_SEPARATOR
     pypth = "#{python_site_packages}"
-    pths = %W[#{HOMEBREW_PREFIX/"bin"} /usr/bin /bin /usr/sbin /sbin /usr/X11/bin].join(pthsep)
+    pths = %W[#{HOMEBREW_PREFIX/"bin"} /usr/bin /bin /usr/sbin /sbin /opt/X11/bin /usr/X11/bin].join(pthsep)
 
     unless opts.include? "enable-isolation"
       pths = ORIGINAL_PATHS.join(pthsep)
@@ -246,6 +259,9 @@ class Qgis24 < Formula
         pypth = (pyenv.include?(pypth)) ? pyenv : pypth + pthsep + pyenv
       end
     end
+
+    # set install's lib/python2.7/site-packages first, so app will work if unlinked
+    pypth = "#{lib}/python2.7/site-packages" + pthsep + pypth
 
     envars = {
       :PATH => "#{pths}",
@@ -259,7 +275,7 @@ class Qgis24 < Formula
       envars[:GRASS_PREFIX] = "#{grass.opt_prefix}/grass-#{grass.version.to_s}"
       inreplace app/"#{proc_algs}/grass/GrassUtils.py",
                 "/Applications/GRASS-6.4.app/Contents/MacOS",
-                HOMEBREW_PREFIX/"opt/grass-64/grass-base"
+                HOMEBREW_PREFIX/"opt/grass-64/grass-base" unless bottle_poured
     end
 
     if opts.include? "with-grass7"
@@ -270,22 +286,20 @@ class Qgis24 < Formula
 
     unless opts.include? "without-globe"
       osg = Formula["open-scene-graph"]
-      envars[:OSG_LIBRARY_PATH] = "#{HOMEBREW_PREFIX}/lib/osgPlugins-#{osg.linked_keg.realpath.basename}"
+      envars[:OSG_LIBRARY_PATH] = "#{HOMEBREW_PREFIX}/lib/osgPlugins-#{osg.version.to_s}"
     end
 
     if opts.include? "enable-isolation"
       envars[:DYLD_FRAMEWORK_PATH] = "#{HOMEBREW_PREFIX}/Frameworks:/System/Library/Frameworks"
       versioned = %W[
-        #{Formula["sqlite"].opt_prefix}/lib
-        #{Formula["expat"].opt_prefix}/lib
-        #{Formula["libxml2"].opt_prefix}/lib
+        #{Formula["sqlite"].opt_lib}
+        #{Formula["expat"].opt_lib}
+        #{Formula["libxml2"].opt_lib}
         #{HOMEBREW_PREFIX}/lib
       ]
       envars[:DYLD_VERSIONED_LIBRARY_PATH] = versioned.join(pthsep)
     end
     if opts.include? "enable-isolation" or File.exist?("/Library/Frameworks/GDAL.framework")
-      # TODO: is PYTHONHOME necessary for isolation, or is it set by embedded interpreter?
-      #envars[:PYTHONHOME] = "#{python.framework}/Python.framework/Versions/Current"
       envars[:PYQGIS_STARTUP] = opt_libexec/"pyqgis_startup.py"
     end
 
@@ -321,7 +335,8 @@ class Qgis24 < Formula
   end
 
   def caveats
-    s = <<-EOS.undent
+    s = bottle_caveat
+    s += <<-EOS.undent
       QGIS is built as an application bundle. Environment variables for the
       Homebrew prefix are embedded in QGIS.app:
         #{opt_prefix}/QGIS.app
@@ -329,9 +344,9 @@ class Qgis24 < Formula
       You may also symlink QGIS.app into /Applications or ~/Applications:
         brew linkapps [--local]
 
-      To run the `QGIS.app/Contents/MacOS/QGIS` binary use the wrapper script
-      pre-defined with Homebrew prefix environment variables:
-        #{opt_prefix}/bin/qgis
+      To directly run the `QGIS.app/Contents/MacOS/QGIS` binary use the wrapper
+      script pre-defined with Homebrew prefix environment variables:
+        #{opt_bin}/qgis
 
       NOTE: Your current PATH and PYTHONPATH environment variables are honored
             when launching via the wrapper script, while launching QGIS.app
@@ -341,7 +356,7 @@ class Qgis24 < Formula
         export PYTHONPATH=#{python_site_packages}:$PYTHONPATH
 
       Developer frameworks are installed in:
-        #{opt_prefix}/lib/qgis-dev
+        #{opt_lib}/qgis-dev
         NOTE: not symlinked to HOMEBREW_PREFIX/Frameworks, which affects isolation.
               Use dyld -F option in CPPFLAGS/LDFLAGS when building other software.
 

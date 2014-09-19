@@ -4,22 +4,26 @@ class Grass70 < Formula
   homepage "http://grass.osgeo.org/"
 
   stable do
-    url "http://grass.osgeo.org/grass70/source/grass-7.0.0beta2.tar.gz"
-    sha1 "b4a87a2ab7ca9384bd563c9fcbc23b836f96a321"
-    version "7.0.0beta2"
+    url "http://grass.osgeo.org/grass70/source/grass-7.0.0beta3.tar.gz"
+    sha1 "603a86b096a33f10d0b9c59918c90919cd1622c2"
+    version "7.0.0beta3"
 
     # Patches to keep files from being installed outside of the prefix.
     # Remove lines from Makefile that try to install to /Library/Documentation.
     patch :DATA
   end
-  revision 1
+
+  bottle do
+    root_url "http://qgis.dakotacarto.com/osgeo4mac/bottles"
+    sha1 "c28e8170be816a9334a9cd02fcdd533126f1c614" => :mavericks
+  end
 
   option "without-gui", "Build without WxPython interface. Command line tools still available."
 
   # TODO: test on 10.6 first. may work with latest wxWidgets 3.0
-  # depends_on :macos => :lion
+  # depends on :macos => :lion
   # TODO: builds with clang (has same non-fatal errors as gcc), but is it compiled correctly?
-  # depends_on "gcc" => :build
+  # depends on "gcc" => :build
   depends_on "pkg-config" => :build
   depends_on "gettext"
   depends_on "readline"
@@ -80,7 +84,8 @@ class Grass70 < Formula
     if headless?
       args << "--without-wxwidgets"
     else
-      ENV["PYTHONPATH"] = "#{Formula["wxpython"].opt_lib}/python2.7/site-packages"
+      wx_paths = formula_site_packages "wxpython"
+      ENV.prepend("PYTHONPATH", wx_paths, File::PATH_SEPARATOR) if wx_paths
       args << "--with-wxwidgets=#{Formula["wxmac"].opt_bin}/wx-config"
     end
 
@@ -122,6 +127,10 @@ class Grass70 < Formula
     system "./configure", "--prefix=#{prefix}", *args
     system "make GDAL_DYNAMIC=" # make and make install must be separate steps.
     system "make GDAL_DYNAMIC= install" # GDAL_DYNAMIC set to blank for r.external compatability
+  end
+
+  def formula_site_packages f
+    `python -c "import os, sys, site; sp1 = list(sys.path); site.addsitedir('#{Formula[f].opt_lib}/python2.7/site-packages'); print(os.pathsep.join([x for x in sys.path if x not in sp1]))"`.strip
   end
 
   def post_install

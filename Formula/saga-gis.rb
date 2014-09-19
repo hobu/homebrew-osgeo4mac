@@ -5,6 +5,11 @@ class SagaGis < Formula
   url "https://downloads.sourceforge.net/project/saga-gis/SAGA%20-%202.1/SAGA%202.1.2/saga_2.1.2.tar.gz"
   sha1 "9dddd3e03bd5f640fedd318ee8ff187785745e86"
 
+  bottle do
+    root_url "http://qgis.dakotacarto.com/osgeo4mac/bottles"
+    sha1 "2e1e3c6f665d603d9dbac2f63e8b6f393d8130fb" => :mavericks
+  end
+
   head "svn://svn.code.sf.net/p/saga-gis/code-0/trunk/saga-gis"
 
   option "with-app", "Build SAGA.app Package"
@@ -66,7 +71,7 @@ class SagaGis < Formula
         resource("liblas").stage do
           # patch liblas
           (Pathname.pwd).install resource("liblas_patch")
-          safe_system "/usr/bin/patch", "-g", "0", "-f", "-d", Pathname.pwd, "-p1", "-i", "saga-gis_liblas.patch"
+          safe_system "/usr/bin/patch", "-g", "0", "-f", "-d", Pathname.pwd, "-p1", "-i", "saga-gis_liblas.diff"
 
           args = %W[
             --prefix=#{libexec}
